@@ -2,60 +2,116 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ルービックキューブ色スキャナー</title>
+  <title>ルービックキューブスキャナー</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
-    video { width: 300px; border: 2px solid #333; }
-    button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
-    pre { background: #eee; padding: 10px; text-align: left; display: inline-block; }
+    body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
+    video, canvas { position: absolute; top: 0; left: 0; }
+    #container { position: relative; display: inline-block; }
+    #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+    #output-box { margin-top: 480px; background: #fff; padding: 10px; display: inline-block; border: 1px solid #ccc; }
+    button { margin-top: 20px; padding: 10px 20px; font-size: 16px; }
   </style>
 </head>
 <body>
-  <h1>ルービックキューブ面スキャナー</h1>
-  <video id="video" autoplay></video><br>
-  <button onclick="capture()">この面を読み取る</button>
-  <canvas id="canvas" style="display:none;"></canvas>
-  <h3>読み取り結果</h3>
-  <pre id="output"></pre>
+  <h1>ルービックキューブ自動スキャン</h1>
+  <div id="container">
+    <video id="video" width="480" height="480" autoplay playsinline></video>
+    <canvas id="overlay" width="480" height="480"></canvas>
+    <canvas id="canvas" width="480" height="480" style="display: none;"></canvas>
+  </div>
+  <br>
+  <button onclick="scan()">この面をスキャン</button>
+  <div id="output-box">
+    <h3>スキャン結果</h3>
+    <pre id="output"></pre>
+  </div>
 
   <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const output = document.getElementById('output');
+    const video = document.getElementById("video");
+    const overlay = document.getElementById("overlay");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const output = document.getElementById("output");
+    const overlayCtx = overlay.getContext("2d");
+
+    const faceOrder = ["U", "F", "R", "B", "L", "D"];
+    let currentFace = 0;
+    const results = {};
 
     // カメラ起動
-    navigator.mediaDevices.getUserMedia({ video: true })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => { video.srcObject = stream; })
       .catch(err => alert("カメラにアクセスできません：" + err));
 
-    function capture() {
-      const ctx = canvas.getContext('2d');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
+    // スキャン枠描画
+    function drawGrid() {
+      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      overlayCtx.strokeStyle = "red";
+      overlayCtx.lineWidth = 2;
+      const size = 40;
+      const offset = 160; // 枠のスタート位置
+      for (let i = 0; i <= 3; i++) {
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(offset, offset + i * size);
+        overlayCtx.lineTo(offset + 3 * size, offset + i * size);
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(offset + i * size, offset);
+        overlayCtx.lineTo(offset + i * size, offset + 3 * size);
+        overlayCtx.stroke();
+      }
+    }
 
+    drawGrid();
+
+    function scan() {
+      if (currentFace >= faceOrder.length) {
+        alert("すべての面をスキャン済みです");
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, 480, 480);
+      const face = faceOrder[currentFace];
       const colors = [];
+
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
-          const x = canvas.width * (0.35 + 0.1 * col);
-          const y = canvas.height * (0.35 + 0.1 * row);
+          const x = 160 + col * 40 + 20; // 中心点
+          const y = 160 + row * 40 + 20;
           const pixel = ctx.getImageData(x, y, 1, 1).data;
-          const label = classifyColor({ r: pixel[0], g: pixel[1], b: pixel[2] });
-          colors.push(label);
+          const color = classifyColor({ r: pixel[0], g: pixel[1], b: pixel[2] });
+          colors.push(color);
         }
       }
 
-      output.textContent += `面: ${colors.join(' ')}\n`;
+      results[face] = colors;
+      updateOutput();
+      currentFace++;
+
+      if (currentFace < faceOrder.length) {
+        alert(`${faceOrder[currentFace]}面をスキャンしてください`);
+      } else {
+        alert("すべての面のスキャンが完了しました！");
+      }
+    }
+
+    function updateOutput() {
+      output.textContent = "";
+      for (const face of faceOrder) {
+        if (results[face]) {
+          output.textContent += `${face}: ${results[face].join(" ")}\n`;
+        }
+      }
     }
 
     function classifyColor({ r, g, b }) {
-      if (r > 200 && g > 200 && b > 200) return 'W'; // 白
-      if (r > 180 && g < 80 && b < 80) return 'R';   // 赤
-      if (r < 80 && g > 180 && b < 80) return 'G';   // 緑
-      if (r < 80 && g < 80 && b > 180) return 'B';   // 青
-      if (r > 200 && g > 200 && b < 100) return 'Y'; // 黄
-      if (r > 200 && g > 130 && b < 80) return 'O';  // オレンジ
-      return '?'; // 判別不能
+      if (r > 200 && g > 200 && b > 200) return "W"; // 白
+      if (r > 180 && g < 80 && b < 80) return "R";   // 赤
+      if (r < 80 && g > 180 && b < 80) return "G";   // 緑
+      if (r < 80 && g < 80 && b > 180) return "B";   // 青
+      if (r > 200 && g > 200 && b < 100) return "Y"; // 黄
+      if (r > 200 && g > 130 && b < 80) return "O";  // オレンジ
+      return "?";
     }
   </script>
 </body>
