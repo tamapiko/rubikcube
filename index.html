@@ -11,15 +11,6 @@
       overflow: hidden;
       font-family: sans-serif;
     }
-    #videoBackground {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      z-index: -1;
-    }
     canvas {
       display: block;
     }
@@ -43,35 +34,6 @@
       border: none;
       max-width: 100%;
     }
-    #cameraContainer {
-      position: absolute;
-      bottom: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.6);
-      padding: 3vw;
-      border-radius: 8px;
-      z-index: 10;
-      color: white;
-    }
-    #colorDisplay {
-      margin-top: 2vh;
-      font-size: 3vh;
-    }
-    #detectedColor {
-      display: inline-block;
-      width: 4vw;
-      height: 4vw;
-      vertical-align: middle;
-      border: 1px solid #fff;
-      margin-left: 1vw;
-    }
-    .colorBox {
-      position: absolute;
-      z-index: 5;
-      background-color: transparent;
-      border: 2px solid white;
-    }
     #scanButton {
       position: absolute;
       bottom: 5%;
@@ -88,15 +50,10 @@
   </style>
 </head>
 <body>
-  <video id="videoBackground" autoplay muted playsinline></video>
   <div id="controls">
     <button onclick="shuffleCube()">ミックス</button>
     <button onclick="resetCube()">リセット</button>
     <button onclick="startScanning()">色を読み取る</button>
-  </div>
-  <div id="cameraContainer">
-    <canvas id="canvas"></canvas>
-    <div id="colorDisplay">中央の色: <span id="rgbText">---</span> <span id="detectedColor"></span></div>
   </div>
   <button id="scanButton" onclick="confirmScan()">スキャンを決定する</button>
 
@@ -164,27 +121,6 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    const video = document.getElementById('videoBackground');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const rgbText = document.getElementById('rgbText');
-    const colorBox = document.getElementById('detectedColor');
-    const scanButton = document.getElementById('scanButton');
-    const colorOverlay = document.getElementById('colorOverlay');
-    const colorBoxes = [];
-
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        console.error('カメラの起動に失敗しました:', err);
-      });
-
-    const faceOrder = ['F', 'U', 'D', 'L', 'R', 'B'];
-    let currentFace = 0;
-    const cubeColors = {};
-
     const colorPalette = {
       white: { r: 255, g: 255, b: 255 },
       yellow: { r: 255, g: 255, b: 0 },
@@ -194,93 +130,33 @@
       orange: { r: 255, g: 165, b: 0 }
     };
 
-    function getClosestColor(color) {
-      let closestColor = 'white';
-      let minDistance = Infinity;
-      for (let [name, targetColor] of Object.entries(colorPalette)) {
-        const distance = Math.sqrt(
-          Math.pow(color.r - targetColor.r, 2) +
-          Math.pow(color.g - targetColor.g, 2) +
-          Math.pow(color.b - targetColor.b, 2)
-        );
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestColor = name;
-        }
-      }
-      return closestColor;
-    }
-
     function captureCenterColor() {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const centerColors = [];
-      const spacing = canvas.width / 6;
-      const startX = canvas.width / 2 - spacing;
-      const startY = canvas.height / 2 - spacing;
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          const x = startX + col * spacing;
-          const y = startY + row * spacing;
-          const imageData = ctx.getImageData(x, y, 1, 1).data;
-          const closestColor = getClosestColor({ r: imageData[0], g: imageData[1], b: imageData[2] });
-          centerColors.push(closestColor);
-        }
-      }
-      return centerColors;
-    }
-
-    function createOverlayGrid() {
-      const padding = 50;
-      const size = (window.innerWidth - padding * 2) / 3;
-      const spacing = size + padding;
-      const startX = window.innerWidth / 2 - (spacing / 2);
-      const startY = window.innerHeight / 2 - (spacing / 2);
-      colorBoxes.length = 0;
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          const box = document.createElement('div');
-          box.classList.add('colorBox');
-          box.style.width = `${size}px`;
-          box.style.height = `${size}px`;
-          box.style.left = `${startX + col * spacing}px`;
-          box.style.top = `${startY + row * spacing}px`;
-          colorBoxes.push(box);
-          document.body.appendChild(box);
-        }
-      }
+      return ['white', 'yellow', 'green', 'red', 'blue', 'orange']; // 仮の色データ
     }
 
     function startScanning() {
-      currentFace = 0;
-      cubeColors.F = [];
-      cubeColors.U = [];
-      cubeColors.D = [];
-      cubeColors.L = [];
-      cubeColors.R = [];
-      cubeColors.B = [];
+      let currentFace = 0;
+      const faceOrder = ['F', 'U', 'D', 'L', 'R', 'B'];
+      const cubeColors = {};
+
       cubeGroup.visible = false;
       scanButton.style.display = 'block';
-      createOverlayGrid();
-      scanNextFace();
-    }
 
-    function scanNextFace() {
-      if (currentFace >= faceOrder.length) {
-        applyColorsToCube();
-        return;
+      function scanNextFace() {
+        if (currentFace >= faceOrder.length) {
+          applyColorsToCube();
+          return;
+        }
+        const face = faceOrder[currentFace];
+        setTimeout(() => {
+          const colors = captureCenterColor(); // 仮にすべての面を色データとして返す
+          cubeColors[face] = colors;
+          currentFace++;
+          scanNextFace();
+        }, 2000);
       }
-      const face = faceOrder[currentFace];
-      setTimeout(() => {
-        const colors = captureCenterColor();
-        cubeColors[face] = colors;
-        colors.forEach((color, index) => {
-          colorBoxes[index].style.backgroundColor = colorPalette[color];
-        });
-        currentFace++;
-        scanNextFace();
-      }, 2000);
+
+      scanNextFace();
     }
 
     function confirmScan() {
