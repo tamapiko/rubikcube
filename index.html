@@ -73,6 +73,20 @@
       font-weight: bold;
       cursor: pointer;
     }
+    #scanStartBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 40px;
+      font-size: 24px;
+      z-index: 10;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -81,8 +95,9 @@
   <div id="controls">
     <button onclick="shuffleCube()">ミックス</button>
     <button onclick="resetCube()">リセット</button>
-    <button onclick="startScanning()">色を読み取る</button>
   </div>
+
+  <div id="scanStartBtn" onclick="startScanning()">スキャン開始</div>
 
   <div id="scanGrid"></div>
   <button id="scanConfirmBtn" onclick="scanGridColors()">スキャン決定</button>
@@ -157,7 +172,7 @@
     }
 
     const scannedFaces = [];
-    const faceLabels = ['F', 'U', 'D', 'L', 'G', 'B'];
+    const faceLabels = ['F', 'U', 'D', 'L', 'R', 'B']; // Correcting to include 'R' instead of 'G'
     let currentFaceIndex = 0;
 
     function scanGridColors() {
@@ -192,14 +207,19 @@
       if (currentFaceIndex >= faceLabels.length) {
         console.log('すべての面のスキャンが完了しました:', scannedFaces);
         cubeGroup.visible = true;
-        // スキャン結果をルービックキューブに反映（例: ログ）
         console.log('キューブに反映:', scannedFaces);
       } else {
         console.log(`${faceLabels[currentFaceIndex]}面のスキャンを開始してください`);
       }
     }
 
-    // --- 3D Cube ---
+    function startScanning() {
+      document.getElementById('scanStartBtn').style.display = 'none'; // Hide start button
+      document.getElementById('scanGrid').style.display = 'grid'; // Show scan grid
+      document.getElementById('scanConfirmBtn').style.display = 'block'; // Show confirm button
+      console.log('スキャンを開始します');
+    }
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
