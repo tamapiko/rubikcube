@@ -81,6 +81,7 @@
       color: white;
       border-radius: 8px;
       cursor: pointer;
+      display: none;
     }
   </style>
 </head>
@@ -95,7 +96,7 @@
     <canvas id="canvas"></canvas>
     <div id="colorDisplay">中央の色: <span id="rgbText">---</span> <span id="detectedColor"></span></div>
   </div>
-  <button id="scanButton" style="display:none;" onclick="confirmScan()">スキャンを決定する</button>
+  <button id="scanButton" onclick="confirmScan()">スキャンを決定する</button>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
   <script>
@@ -166,8 +167,9 @@
     const ctx = canvas.getContext('2d');
     const rgbText = document.getElementById('rgbText');
     const colorBox = document.getElementById('detectedColor');
-    const colorOverlay = document.getElementById('colorOverlay');
     const scanButton = document.getElementById('scanButton');
+    const colorOverlay = document.getElementById('colorOverlay');
+    const colorBoxes = [];
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
@@ -226,6 +228,8 @@
       faceOrder.forEach(f => cubeColors[f] = []);
       createOverlayGrid();
       scanNextFace();
+      cubeGroup.visible = false; // キューブを非表示にする
+      scanButton.style.display = 'block'; // スキャン決定ボタンを表示
     }
 
     function scanNextFace() {
@@ -234,27 +238,33 @@
         return;
       }
       const face = faceOrder[currentFace];
-      alert(`${face}面をカメラの中央に合わせてください。スキャンします。`);
       setTimeout(() => {
         const colors = captureCenterColor();
         cubeColors[face] = colors;
-        rgbText.textContent = `R:${colors[4].r} G:${colors[4].g} B:${colors[4].b}`;
-        const rgb = `rgb(${colors[4].r},${colors[4].g},${colors[4].b})`;
-        colorBox.style.backgroundColor = rgb;
+        updateColorOverlay(colors);
         currentFace++;
         scanNextFace();
       }, 2000);
     }
 
+    function updateColorOverlay(colors) {
+      for (let i = 0; i < 9; i++) {
+        const box = colorBoxes[i];
+        const color = colors[i];
+        box.style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+      }
+    }
+
     function confirmScan() {
-      alert("スキャンを確認しました。");
+      cubeGroup.visible = true; // キューブを再表示
+      scanButton.style.display = 'none'; // スキャン決定ボタンを非表示
+      alert("スキャン完了!");
       applyColorsToCube();
     }
 
     function applyColorsToCube() {
       console.log("スキャン完了:", cubeColors);
-      alert("全ての面をスキャンしました！");
-      // TODO: cubeColorsを使って3Dキューブの面の色を更新する
+      // cubeColorsを使って3Dキューブの面の色を更新する処理をここに追加
     }
   </script>
 </body>
