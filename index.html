@@ -31,8 +31,8 @@
     }
     #controls button {
       margin: 8px;
-      padding: 20px 32px;
-      font-size: 24px;
+      padding: 2vw 4vw;
+      font-size: 2vw;
       border-radius: 12px;
       font-weight: bold;
       cursor: pointer;
@@ -64,8 +64,8 @@
     }
     .colorBox {
       position: absolute;
-      width: 40px;
-      height: 40px;
+      width: 60px;
+      height: 60px;
       border: 2px solid white;
       z-index: 5;
       background-color: transparent;
@@ -75,8 +75,8 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 10px 20px;
-      font-size: 20px;
+      padding: 3vw 6vw;
+      font-size: 2vw;
       background-color: #008CBA;
       color: white;
       border-radius: 8px;
@@ -203,8 +203,8 @@
     }
 
     function createOverlayGrid() {
-      const size = 40;
-      const spacing = 50;
+      const size = 60;
+      const spacing = 70;
       const startX = window.innerWidth / 2 - spacing;
       const startY = window.innerHeight / 2 - spacing;
 
@@ -240,30 +240,23 @@
       setTimeout(() => {
         const colors = captureCenterColor();
         cubeColors[faceOrder[currentFace]] = colors;
-        updateColorOverlay(colors);
+        colorBoxes.forEach((box, index) => {
+          const color = colors[index];
+          const rgb = `rgb(${color.r},${color.g},${color.b})`;
+          box.style.backgroundColor = rgb;
+        });
         currentFace++;
-        scanNextFace();
       }, 2000);
     }
 
-    function updateColorOverlay(colors) {
-      for (let i = 0; i < 9; i++) {
-        const box = colorBoxes[i];
-        const color = colors[i];
-        box.style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
-      }
-    }
-
     function confirmScan() {
-      cubeGroup.visible = true; // キューブを再表示
-      scanButton.style.display = 'none'; // スキャン決定ボタンを非表示
       applyColorsToCube();
     }
 
     function applyColorsToCube() {
       console.log("スキャン完了:", cubeColors);
-      // cubeColorsを使って3Dキューブの面の色を更新する処理をここに追加
-      // 例えば、F面、U面などを変更する処理をここに実装
+      cubeGroup.visible = true;
+      scanButton.style.display = 'none';
     }
   </script>
 </body>
