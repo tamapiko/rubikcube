@@ -237,10 +237,9 @@
         applyColorsToCube();
         return;
       }
-      const face = faceOrder[currentFace];
       setTimeout(() => {
         const colors = captureCenterColor();
-        cubeColors[face] = colors;
+        cubeColors[faceOrder[currentFace]] = colors;
         updateColorOverlay(colors);
         currentFace++;
         scanNextFace();
@@ -258,13 +257,13 @@
     function confirmScan() {
       cubeGroup.visible = true; // キューブを再表示
       scanButton.style.display = 'none'; // スキャン決定ボタンを非表示
-      alert("スキャン完了!");
       applyColorsToCube();
     }
 
     function applyColorsToCube() {
       console.log("スキャン完了:", cubeColors);
       // cubeColorsを使って3Dキューブの面の色を更新する処理をここに追加
+      // 例えば、F面、U面などを変更する処理をここに実装
     }
   </script>
 </body>
