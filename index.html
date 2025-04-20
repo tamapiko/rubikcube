@@ -29,6 +29,18 @@
     }
     #status { top: 10px; }
     #guide { top: 50px; }
+    #scanButton {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      font-size: 18px;
+      background-color: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -36,8 +48,9 @@
   <canvas id="canvasOutput"></canvas>
   <div id="status">読み込み中...</div>
   <div id="guide">U面をスキャンしてください。</div>
+  <button id="scanButton">スキャン</button>
 
-  <!-- OpenCV.js CDN -->
+  <!-- OpenCV.js -->
   <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
 
   <script>
@@ -46,6 +59,7 @@
     let ctx = canvas.getContext('2d');
     let statusText = document.getElementById('status');
     let guideText = document.getElementById('guide');
+    let scanButton = document.getElementById('scanButton');
 
     let currentScanFace = 'U';
     let scannedColors = { U: [], F: [], R: [], B: [], L: [], D: [] };
@@ -59,7 +73,7 @@
           video.onloadedmetadata = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            startProcessing();
+            requestAnimationFrame(drawVideo);
           };
         })
         .catch(err => {
@@ -67,66 +81,48 @@
         });
     }
 
-    function startProcessing() {
-      let src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
-      let gray = new cv.Mat();
-      let blurred = new cv.Mat();
-      let edges = new cv.Mat();
-      let contours = new cv.MatVector();
-      let hierarchy = new cv.Mat();
-
-      function processVideo() {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        src.data.set(imageData.data);
-
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-        cv.Canny(blurred, edges, 50, 150);
-        cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-        for (let i = 0; i < contours.size(); ++i) {
-          let cnt = contours.get(i);
-          let approx = new cv.Mat();
-          cv.approxPolyDP(cnt, approx, 0.02 * cv.arcLength(cnt, true), true);
-
-          if (approx.rows === 4 && cv.contourArea(approx) > 1000) {
-            let points = [];
-            for (let j = 0; j < 4; j++) {
-              points.push({ x: approx.data32S[j * 2], y: approx.data32S[j * 2 + 1] });
-            }
-
-            let centerX = points.reduce((sum, p) => sum + p.x, 0) / 4;
-            let centerY = points.reduce((sum, p) => sum + p.y, 0) / 4;
-
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let j = 1; j < 4; j++) ctx.lineTo(points[j].x, points[j].y);
-            ctx.closePath();
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = 'red';
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
-            ctx.fillStyle = 'yellow';
-            ctx.fill();
-
-            identifyColors(points);
-            statusText.innerText = 'ルービックキューブを検出しました。';
-            approx.delete();
-            break;
-          }
-          approx.delete();
-        }
-
-        requestAnimationFrame(processVideo);
-      }
-
-      requestAnimationFrame(processVideo);
+    function drawVideo() {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      drawScanGrid();
+      requestAnimationFrame(drawVideo);
     }
 
-    function identifyColors(points) {
+    function drawScanGrid() {
+      const gridSize = Math.min(canvas.width, canvas.height) * 0.4;
+      const startX = (canvas.width - gridSize) / 2;
+      const startY = (canvas.height - gridSize) / 2;
+      const cellSize = gridSize / 3;
+
+      // 描画（線）
+      ctx.strokeStyle = 'lime';
+      ctx.lineWidth = 2;
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          const x = startX + col * cellSize;
+          const y = startY + row * cellSize;
+          ctx.strokeRect(x, y, cellSize, cellSize);
+
+          // 色が記録されていれば表示
+          const colorList = scannedColors[currentScanFace];
+          const index = row * 3 + col;
+          if (colorList[index]) {
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(x, y, cellSize, cellSize);
+            ctx.fillStyle = 'white';
+            ctx.font = `${cellSize / 3}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(colorList[index], x + cellSize / 2, y + cellSize / 2);
+          }
+        }
+      }
+    }
+
+    scanButton.addEventListener('click', () => {
+      identifyColors();
+    });
+
+    function identifyColors() {
       const colors = ['白', '黄', '赤', 'オレンジ', '青', '緑'];
       const detectedColors = Array.from({ length: 9 }, () => colors[Math.floor(Math.random() * colors.length)]);
       
@@ -141,6 +137,7 @@
         case 'L': currentScanFace = 'D'; break;
         case 'D':
           guideText.innerText = 'すべての面をスキャンしました！';
+          scanButton.disabled = true;
           showAllScannedColors();
           return;
       }
