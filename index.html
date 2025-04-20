@@ -4,114 +4,124 @@
   <meta charset="UTF-8">
   <title>ルービックキューブスキャナー</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
-    video, canvas { position: absolute; top: 0; left: 0; }
-    #container { position: relative; display: inline-block; }
-    #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
-    #output-box { margin-top: 480px; background: #fff; padding: 10px; display: inline-block; border: 1px solid #ccc; }
-    button { margin-top: 20px; padding: 10px 20px; font-size: 16px; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+    #videoElement, #canvasOutput {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+    #status {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #fff;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
-  <h1>ルービックキューブ自動スキャン</h1>
-  <div id="container">
-    <video id="video" width="480" height="480" autoplay playsinline></video>
-    <canvas id="overlay" width="480" height="480"></canvas>
-    <canvas id="canvas" width="480" height="480" style="display: none;"></canvas>
-  </div>
-  <br>
-  <button onclick="scan()">この面をスキャン</button>
-  <div id="output-box">
-    <h3>スキャン結果</h3>
-    <pre id="output"></pre>
-  </div>
+  <video id="videoElement" autoplay playsinline></video>
+  <canvas id="canvasOutput"></canvas>
+  <div id="status">読み込み中...</div>
+
+  <!-- OpenCV.jsとutils.jsの読み込み -->
+  <script async src="opencv.js" onload="onOpenCvReady();"></script>
+  <script src="utils.js"></script>
 
   <script>
-    const video = document.getElementById("video");
-    const overlay = document.getElementById("overlay");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const output = document.getElementById("output");
-    const overlayCtx = overlay.getContext("2d");
+    let video = document.getElementById('videoElement');
+    let canvas = document.getElementById('canvasOutput');
+    let ctx = canvas.getContext('2d');
+    let statusText = document.getElementById('status');
 
-    const faceOrder = ["U", "F", "R", "B", "L", "D"];
-    let currentFace = 0;
-    const results = {};
-
-    // カメラ起動
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => { video.srcObject = stream; })
-      .catch(err => alert("カメラにアクセスできません：" + err));
-
-    // スキャン枠描画
-    function drawGrid() {
-      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-      overlayCtx.strokeStyle = "red";
-      overlayCtx.lineWidth = 2;
-      const size = 40;
-      const offset = 160; // 枠のスタート位置
-      for (let i = 0; i <= 3; i++) {
-        overlayCtx.beginPath();
-        overlayCtx.moveTo(offset, offset + i * size);
-        overlayCtx.lineTo(offset + 3 * size, offset + i * size);
-        overlayCtx.stroke();
-        overlayCtx.beginPath();
-        overlayCtx.moveTo(offset + i * size, offset);
-        overlayCtx.lineTo(offset + i * size, offset + 3 * size);
-        overlayCtx.stroke();
-      }
+    function onOpenCvReady() {
+      statusText.innerText = 'カメラを起動しています...';
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(function(stream) {
+          video.srcObject = stream;
+          video.play();
+          video.onloadedmetadata = function() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            startProcessing();
+          };
+        })
+        .catch(function(err) {
+          statusText.innerText = 'カメラの起動に失敗しました: ' + err;
+        });
     }
 
-    drawGrid();
+    function startProcessing() {
+      let src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+      let gray = new cv.Mat();
+      let blurred = new cv.Mat();
+      let edges = new cv.Mat();
+      let contours = new cv.MatVector();
+      let hierarchy = new cv.Mat();
 
-    function scan() {
-      if (currentFace >= faceOrder.length) {
-        alert("すべての面をスキャン済みです");
-        return;
-      }
+      function processVideo() {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        src.data.set(imageData.data);
 
-      ctx.drawImage(video, 0, 0, 480, 480);
-      const face = faceOrder[currentFace];
-      const colors = [];
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+        cv.Canny(blurred, edges, 50, 150);
 
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          const x = 160 + col * 40 + 20; // 中心点
-          const y = 160 + row * 40 + 20;
-          const pixel = ctx.getImageData(x, y, 1, 1).data;
-          const color = classifyColor({ r: pixel[0], g: pixel[1], b: pixel[2] });
-          colors.push(color);
+        cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+        for (let i = 0; i < contours.size(); ++i) {
+          let cnt = contours.get(i);
+          let approx = new cv.Mat();
+          cv.approxPolyDP(cnt, approx, 0.02 * cv.arcLength(cnt, true), true);
+          if (approx.rows === 4 && cv.contourArea(approx) > 1000) {
+            let points = [];
+            for (let j = 0; j < 4; j++) {
+              points.push({ x: approx.data32S[j * 2], y: approx.data32S[j * 2 + 1] });
+            }
+            // 四角形の中心を計算
+            let centerX = points.reduce((sum, p) => sum + p.x, 0) / 4;
+            let centerY = points.reduce((sum, p) => sum + p.y, 0) / 4;
+
+            // スキャン枠を描画
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let j = 1; j < 4; j++) {
+              ctx.lineTo(points[j].x, points[j].y);
+            }
+            ctx.closePath();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+
+            // 中心にマーカーを描画
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = 'yellow';
+            ctx.fill();
+
+            statusText.innerText = 'ルービックキューブを検出しました。';
+            approx.delete();
+            break;
+          }
+          approx.delete();
         }
+
+        requestAnimationFrame(processVideo);
       }
 
-      results[face] = colors;
-      updateOutput();
-      currentFace++;
-
-      if (currentFace < faceOrder.length) {
-        alert(`${faceOrder[currentFace]}面をスキャンしてください`);
-      } else {
-        alert("すべての面のスキャンが完了しました！");
-      }
-    }
-
-    function updateOutput() {
-      output.textContent = "";
-      for (const face of faceOrder) {
-        if (results[face]) {
-          output.textContent += `${face}: ${results[face].join(" ")}\n`;
-        }
-      }
-    }
-
-    function classifyColor({ r, g, b }) {
-      if (r > 200 && g > 200 && b > 200) return "W"; // 白
-      if (r > 180 && g < 80 && b < 80) return "R";   // 赤
-      if (r < 80 && g > 180 && b < 80) return "G";   // 緑
-      if (r < 80 && g < 80 && b > 180) return "B";   // 青
-      if (r > 200 && g > 200 && b < 100) return "Y"; // 黄
-      if (r > 200 && g > 130 && b < 80) return "O";  // オレンジ
-      return "?";
+      requestAnimationFrame(processVideo);
     }
   </script>
 </body>
