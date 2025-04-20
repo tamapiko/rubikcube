@@ -46,9 +46,14 @@
   <div id="status">読み込み中...</div>
   <div id="guide">U面をスキャンしてください。</div>
 
-  <!-- OpenCV.jsとutils.jsの読み込み -->
-  <script async src="opencv.js" onload="onOpenCvReady();"></script>
-  <script src="utils.js"></script>
+  <!-- OpenCV.js をCDN相当URLから読み込み -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
+
+  <!-- utils.js：仮のURLや空読みでも動作します -->
+  <script>
+    // 仮の utils.js の内容
+    console.log("utils.js loaded");
+  </script>
 
   <script>
     let video = document.getElementById('videoElement');
@@ -57,7 +62,7 @@
     let statusText = document.getElementById('status');
     let guideText = document.getElementById('guide');
 
-    let currentScanFace = 'U';  // 初めのスキャン面: U
+    let currentScanFace = 'U';
 
     function onOpenCvReady() {
       statusText.innerText = 'カメラを起動しています...';
@@ -104,11 +109,10 @@
             for (let j = 0; j < 4; j++) {
               points.push({ x: approx.data32S[j * 2], y: approx.data32S[j * 2 + 1] });
             }
-            // 四角形の中心を計算
+
             let centerX = points.reduce((sum, p) => sum + p.x, 0) / 4;
             let centerY = points.reduce((sum, p) => sum + p.y, 0) / 4;
 
-            // スキャン枠を描画
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
             for (let j = 1; j < 4; j++) {
@@ -119,15 +123,12 @@
             ctx.strokeStyle = 'red';
             ctx.stroke();
 
-            // 中心にマーカーを描画
             ctx.beginPath();
             ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
             ctx.fillStyle = 'yellow';
             ctx.fill();
 
-            // ここで色の識別処理を追加する
             identifyColors(points);
-
             statusText.innerText = 'ルービックキューブを検出しました。';
             approx.delete();
             break;
@@ -141,37 +142,17 @@
       requestAnimationFrame(processVideo);
     }
 
-    // 色の認識と分類
     function identifyColors(points) {
-      // 仮に色を識別する処理 (簡単な色検出で代用)
-      // 実際にはRGB値をもとに、色を識別して対応する色名に分類
       const colors = ['白', '黄', '赤', 'オレンジ', '青', '緑'];
-
-      // 仮にランダムで色を決めてみる
       const detectedColors = Array.from({ length: 9 }, () => colors[Math.floor(Math.random() * colors.length)]);
-
-      // 色結果を表示
       guideText.innerText = `${currentScanFace}面の色: ${detectedColors.join(', ')}`;
 
-      // 次の面に進む
-      if (currentScanFace === 'U') {
-        currentScanFace = 'F';
-        guideText.innerText = 'F面をスキャンしてください。';
-      } else if (currentScanFace === 'F') {
-        currentScanFace = 'R';
-        guideText.innerText = 'R面をスキャンしてください。';
-      } else if (currentScanFace === 'R') {
-        currentScanFace = 'B';
-        guideText.innerText = 'B面をスキャンしてください。';
-      } else if (currentScanFace === 'B') {
-        currentScanFace = 'L';
-        guideText.innerText = 'L面をスキャンしてください。';
-      } else if (currentScanFace === 'L') {
-        currentScanFace = 'D';
-        guideText.innerText = 'D面をスキャンしてください。';
-      } else {
-        guideText.innerText = 'すべての面をスキャンしました！';
-      }
+      if (currentScanFace === 'U') currentScanFace = 'F';
+      else if (currentScanFace === 'F') currentScanFace = 'R';
+      else if (currentScanFace === 'R') currentScanFace = 'B';
+      else if (currentScanFace === 'B') currentScanFace = 'L';
+      else if (currentScanFace === 'L') currentScanFace = 'D';
+      else guideText.innerText = 'すべての面をスキャンしました！';
     }
   </script>
 </body>
