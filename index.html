@@ -8,6 +8,8 @@
       margin: 0;
       overflow: hidden;
       background: #222;
+      color: #fff;
+      font-family: sans-serif;
     }
     canvas {
       display: block;
@@ -35,6 +37,19 @@
     #video {
       width: 200px;
       height: auto;
+      border: 2px solid #fff;
+    }
+    #colorDisplay {
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    #detectedColor {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+      border: 1px solid #fff;
+      margin-left: 5px;
     }
   </style>
 </head>
@@ -47,6 +62,7 @@
   <div id="cameraContainer">
     <video id="video" autoplay muted></video>
     <canvas id="canvas" style="display:none;"></canvas>
+    <div id="colorDisplay">中央の色: <span id="rgbText">---</span> <span id="detectedColor"></span></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
@@ -119,6 +135,8 @@
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    const rgbText = document.getElementById('rgbText');
+    const colorBox = document.getElementById('detectedColor');
 
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
@@ -135,9 +153,8 @@
 
       const imageData = ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1);
       const [r, g, b] = imageData.data;
-      alert(`中央のピクセルの色: R:${r} G:${g} B:${b}`);
-
-      // ここに色判定ロジックを追加すれば、ルービックキューブの面色解析が可能です
+      rgbText.textContent = `R:${r} G:${g} B:${b}`;
+      colorBox.style.backgroundColor = `rgb(${r},${g},${b})`;
     }
   </script>
 </body>
