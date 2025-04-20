@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>3D Rubik's Cube</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r148/three.min.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -21,7 +22,7 @@
       z-index: -1;
     }
     canvas {
-      display: block;
+      display: none;
     }
     #controls {
       position: absolute;
@@ -34,9 +35,9 @@
       flex-wrap: wrap;
     }
     #controls button {
-      padding: 10px 16px;
-      font-size: 16px;
-      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      border-radius: 6px;
       font-weight: bold;
       cursor: pointer;
     }
@@ -44,8 +45,8 @@
       position: absolute;
       top: 50%;
       left: 50%;
-      width: calc(100vmin - 100px);
-      height: calc(100vmin - 100px);
+      width: 50vmin;
+      height: 50vmin;
       transform: translate(-50%, -50%);
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -66,7 +67,7 @@
       left: 50%;
       transform: translateX(-50%);
       padding: 10px 20px;
-      font-size: 18px;
+      font-size: 16px;
       z-index: 10;
       border-radius: 8px;
       font-weight: bold;
@@ -89,16 +90,24 @@
   <script>
     const video = document.getElementById('videoBackground');
     const scanGrid = document.getElementById('scanGrid');
+    const gridCells = [];
     for (let i = 0; i < 9; i++) {
       const cell = document.createElement('div');
       cell.className = 'gridCell';
       scanGrid.appendChild(cell);
+      gridCells.push(cell);
     }
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'environment'
+      }
+    })
       .then(stream => {
         video.srcObject = stream;
       })
@@ -107,37 +116,49 @@
       });
 
     function getAverageColor(x, y, size) {
-      const imageData = ctx.getImageData(x, y, size, size);
-      let r = 0, g = 0, b = 0;
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        r += data[i];
-        g += data[i + 1];
-        b += data[i + 2];
+      x = Math.max(0, Math.floor(x));
+      y = Math.max(0, Math.floor(y));
+      size = Math.floor(size);
+      try {
+        const imageData = ctx.getImageData(x, y, size, size);
+        let r = 0, g = 0, b = 0;
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          r += data[i];
+          g += data[i + 1];
+          b += data[i + 2];
+        }
+        const pixelCount = data.length / 4;
+        return { r: r / pixelCount, g: g / pixelCount, b: b / pixelCount };
+      } catch (e) {
+        console.error('色の取得に失敗:', e);
+        return { r: 0, g: 0, b: 0 };
       }
-      const pixelCount = data.length / 4;
-      return { r: r / pixelCount, g: g / pixelCount, b: b / pixelCount };
     }
 
     function mapToColor(r, g, b) {
       const colors = [
-        { name: '白', rgb: [255, 255, 255] },
-        { name: '黄', rgb: [255, 255, 0] },
-        { name: '緑', rgb: [0, 255, 0] },
-        { name: '赤', rgb: [255, 0, 0] },
-        { name: '青', rgb: [0, 0, 255] },
-        { name: '橙', rgb: [255, 165, 0] }
+        { name: '白', rgb: [255, 255, 255], hex: '#ffffff' },
+        { name: '黄', rgb: [255, 255, 0], hex: '#ffff00' },
+        { name: '緑', rgb: [0, 255, 0], hex: '#00ff00' },
+        { name: '赤', rgb: [255, 0, 0], hex: '#ff0000' },
+        { name: '青', rgb: [0, 0, 255], hex: '#0000ff' },
+        { name: '橙', rgb: [255, 165, 0], hex: '#ffa500' }
       ];
-      let minDist = Infinity, closest = '';
+      let minDist = Infinity, closest = colors[0];
       for (const c of colors) {
         const dist = Math.sqrt((r - c.rgb[0])**2 + (g - c.rgb[1])**2 + (b - c.rgb[2])**2);
         if (dist < minDist) {
           minDist = dist;
-          closest = c.name;
+          closest = c;
         }
       }
       return closest;
     }
+
+    const scannedFaces = [];
+    const faceLabels = ['F', 'U', 'D', 'L', 'G', 'B'];
+    let currentFaceIndex = 0;
 
     function scanGridColors() {
       const width = video.videoWidth;
@@ -146,25 +167,39 @@
       canvas.height = height;
       ctx.drawImage(video, 0, 0, width, height);
 
-      const cellSize = width * 0.2 / 3; // 約20%中央部
-      const offsetX = (width - cellSize * 3) / 2;
-      const offsetY = (height - cellSize * 3) / 2;
+      const grid = scanGrid.getBoundingClientRect();
+      const scaleX = video.videoWidth / window.innerWidth;
+      const scaleY = video.videoHeight / window.innerHeight;
 
-      const results = [];
+      const cellWidth = grid.width / 3;
+      const cellHeight = grid.height / 3;
+
+      const faceData = [];
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
-          const x = offsetX + col * cellSize;
-          const y = offsetY + row * cellSize;
-          const { r, g, b } = getAverageColor(x, y, cellSize / 2);
-          const colorName = mapToColor(r, g, b);
-          results.push(colorName);
+          const x = (grid.left + col * cellWidth) * scaleX;
+          const y = (grid.top + row * cellHeight) * scaleY;
+          const { r, g, b } = getAverageColor(x, y, Math.min(cellWidth, cellHeight) * scaleX * 0.6);
+          const color = mapToColor(r, g, b);
+          faceData.push(color.name);
+          gridCells[row * 3 + col].style.backgroundColor = color.hex;
         }
       }
 
-      console.log("スキャン結果:", results);
+      scannedFaces.push({ face: faceLabels[currentFaceIndex], data: faceData });
+      currentFaceIndex++;
+
+      if (currentFaceIndex >= faceLabels.length) {
+        console.log('すべての面のスキャンが完了しました:', scannedFaces);
+        cubeGroup.visible = true;
+        // スキャン結果をルービックキューブに反映（例: ログ）
+        console.log('キューブに反映:', scannedFaces);
+      } else {
+        console.log(`${faceLabels[currentFaceIndex]}面のスキャンを開始してください`);
+      }
     }
 
-    // --- 3D Cube（非表示中） ---
+    // --- 3D Cube ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -172,6 +207,8 @@
     document.body.appendChild(renderer.domElement);
 
     const cubeGroup = new THREE.Group();
+    cubeGroup.visible = false;
+
     const cubeSize = 0.95;
     const offset = 1.05;
     const cubes = [];
