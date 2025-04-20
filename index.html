@@ -181,6 +181,32 @@
     let currentFace = 0;
     const cubeColors = {};
 
+    const colorPalette = {
+      white: { r: 255, g: 255, b: 255 },
+      yellow: { r: 255, g: 255, b: 0 },
+      green: { r: 0, g: 255, b: 0 },
+      red: { r: 255, g: 0, b: 0 },
+      blue: { r: 0, g: 0, b: 255 },
+      orange: { r: 255, g: 165, b: 0 }
+    };
+
+    function getClosestColor(color) {
+      let closestColor = 'white';
+      let minDistance = Infinity;
+      for (let [name, targetColor] of Object.entries(colorPalette)) {
+        const distance = Math.sqrt(
+          Math.pow(color.r - targetColor.r, 2) +
+          Math.pow(color.g - targetColor.g, 2) +
+          Math.pow(color.b - targetColor.b, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestColor = name;
+        }
+      }
+      return closestColor;
+    }
+
     function captureCenterColor() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -194,7 +220,8 @@
           const x = startX + col * spacing;
           const y = startY + row * spacing;
           const imageData = ctx.getImageData(x, y, 1, 1).data;
-          centerColors.push({ r: imageData[0], g: imageData[1], b: imageData[2] });
+          const closestColor = getClosestColor({ r: imageData[0], g: imageData[1], b: imageData[2] });
+          centerColors.push(closestColor);
         }
       }
       return centerColors;
@@ -204,33 +231,35 @@
       const padding = 50;
       const size = (window.innerWidth - padding * 2) / 3;
       const spacing = size + padding;
-      const startX = window.innerWidth / 2 - spacing;
-      const startY = window.innerHeight / 2 - spacing;
-
-      colorBoxes.forEach(box => document.body.removeChild(box));
+      const startX = window.innerWidth / 2 - (spacing / 2);
+      const startY = window.innerHeight / 2 - (spacing / 2);
       colorBoxes.length = 0;
-
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
           const box = document.createElement('div');
-          box.className = 'colorBox';
-          box.style.left = `${startX + col * spacing}px`;
-          box.style.top = `${startY + row * spacing}px`;
+          box.classList.add('colorBox');
           box.style.width = `${size}px`;
           box.style.height = `${size}px`;
-          document.body.appendChild(box);
+          box.style.left = `${startX + col * spacing}px`;
+          box.style.top = `${startY + row * spacing}px`;
           colorBoxes.push(box);
+          document.body.appendChild(box);
         }
       }
     }
 
     function startScanning() {
       currentFace = 0;
-      faceOrder.forEach(f => cubeColors[f] = []);
+      cubeColors.F = [];
+      cubeColors.U = [];
+      cubeColors.D = [];
+      cubeColors.L = [];
+      cubeColors.R = [];
+      cubeColors.B = [];
+      cubeGroup.visible = false;
+      scanButton.style.display = 'block';
       createOverlayGrid();
       scanNextFace();
-      cubeGroup.visible = false; // キューブを非表示にする
-      scanButton.style.display = 'block'; // スキャン決定ボタンを表示
     }
 
     function scanNextFace() {
@@ -238,14 +267,15 @@
         applyColorsToCube();
         return;
       }
+      const face = faceOrder[currentFace];
       setTimeout(() => {
-        const face = faceOrder[currentFace];
         const colors = captureCenterColor();
-        cubeColors[face].push(colors);
+        cubeColors[face] = colors;
         colors.forEach((color, index) => {
-          colorBoxes[index].style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+          colorBoxes[index].style.backgroundColor = colorPalette[color];
         });
         currentFace++;
+        scanNextFace();
       }, 2000);
     }
 
