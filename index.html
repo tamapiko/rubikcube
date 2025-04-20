@@ -64,11 +64,9 @@
     }
     .colorBox {
       position: absolute;
-      width: 60px;
-      height: 60px;
-      border: 2px solid white;
       z-index: 5;
       background-color: transparent;
+      border: 2px solid white;
     }
     #scanButton {
       position: absolute;
@@ -203,8 +201,9 @@
     }
 
     function createOverlayGrid() {
-      const size = 60;
-      const spacing = 70;
+      const padding = 50;
+      const size = (window.innerWidth - padding * 2) / 3;
+      const spacing = size + padding;
       const startX = window.innerWidth / 2 - spacing;
       const startY = window.innerHeight / 2 - spacing;
 
@@ -215,8 +214,10 @@
         for (let col = 0; col < 3; col++) {
           const box = document.createElement('div');
           box.className = 'colorBox';
-          box.style.left = `${startX + col * spacing - size / 2}px`;
-          box.style.top = `${startY + row * spacing - size / 2}px`;
+          box.style.left = `${startX + col * spacing}px`;
+          box.style.top = `${startY + row * spacing}px`;
+          box.style.width = `${size}px`;
+          box.style.height = `${size}px`;
           document.body.appendChild(box);
           colorBoxes.push(box);
         }
@@ -238,12 +239,12 @@
         return;
       }
       setTimeout(() => {
+        const face = faceOrder[currentFace];
         const colors = captureCenterColor();
-        cubeColors[faceOrder[currentFace]] = colors;
-        colorBoxes.forEach((box, index) => {
-          const color = colors[index];
+        cubeColors[face] = colors;
+        colors.forEach((color, index) => {
           const rgb = `rgb(${color.r},${color.g},${color.b})`;
-          box.style.backgroundColor = rgb;
+          colorBoxes[index].style.backgroundColor = rgb;
         });
         currentFace++;
       }, 2000);
