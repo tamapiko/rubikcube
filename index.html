@@ -192,11 +192,13 @@
       const cellHeight = grid.height / 3;
 
       const faceData = [];
+      const samplingSize = 8; // ピクセル数を増やしてスキャンの精度を向上させる
+
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
           const x = (grid.left + col * cellWidth) * scaleX;
           const y = (grid.top + row * cellHeight) * scaleY;
-          const { r, g, b } = getAverageColor(x, y, Math.min(cellWidth, cellHeight) * scaleX * 0.6);
+          const { r, g, b } = getAverageColor(x, y, samplingSize);
           const color = mapToColor(r, g, b);
           faceData.push(color.name);
           gridCells[row * 3 + col].style.backgroundColor = color.hex;
