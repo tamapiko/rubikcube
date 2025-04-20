@@ -54,6 +54,7 @@
       gap: 4px;
       z-index: 5;
       pointer-events: none;
+      display: none; /* Initially hidden */
     }
     .gridCell {
       border: 2px solid white;
@@ -72,6 +73,7 @@
       border-radius: 8px;
       font-weight: bold;
       cursor: pointer;
+      display: none; /* Initially hidden */
     }
     #scanStartBtn {
       position: absolute;
@@ -172,7 +174,7 @@
     }
 
     const scannedFaces = [];
-    const faceLabels = ['F', 'U', 'D', 'L', 'R', 'B']; // Correcting to include 'R' instead of 'G'
+    const faceLabels = ['F', 'U', 'D', 'L', 'R', 'B'];
     let currentFaceIndex = 0;
 
     function scanGridColors() {
