@@ -54,7 +54,7 @@
       gap: 4px;
       z-index: 5;
       pointer-events: none;
-      display: none; /* 最初は非表示 */
+      display: grid; /* スキャン中は常に表示 */
     }
     .gridCell {
       border: 2px solid white;
@@ -212,16 +212,17 @@
         console.log('すべての面のスキャンが完了しました:', scannedFaces);
         // スキャン結果をルービックキューブに反映（例: ログ）
         console.log('キューブに反映:', scannedFaces);
-        scanGrid.style.display = 'none'; // スキャン完了後はグリッドを非表示に
-      } else {
-        console.log(`${faceLabels[currentFaceIndex]}面のスキャンを開始してください`);
-      }
+      } 
     }
 
     function startScanning() {
       document.getElementById('startScanBtn').style.display = 'none'; // スキャン開始ボタンを非表示に
-      scanGrid.style.display = 'grid'; // スキャン用グリッドを表示
       setInterval(scanGridColors, 100); // 100msごとにスキャン実行
+    }
+
+    function scanComplete() {
+      console.log("スキャンが完了しました！");
+      scanGrid.style.display = 'none'; // すべての面のスキャン後にグリッドを非表示に
     }
 
     // --- 3D Cube ---
