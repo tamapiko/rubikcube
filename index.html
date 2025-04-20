@@ -1,288 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>3D Rubik's Cube</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r148/three.min.js"></script>
+  <meta charset="UTF-8">
+  <title>ルービックキューブ色スキャナー</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      font-family: sans-serif;
-    }
-    #videoBackground {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      z-index: -1;
-    }
-    canvas {
-      display: none;
-    }
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      display: flex;
-      flex-direction: row;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    #controls button {
-      padding: 8px 12px;
-      font-size: 14px;
-      border-radius: 6px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    #scanGrid {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 50vmin;
-      height: 50vmin;
-      transform: translate(-50%, -50%);
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, 1fr);
-      gap: 4px;
-      z-index: 5;
-      pointer-events: none;
-      display: grid; /* スキャン中は常に表示 */
-    }
-    .gridCell {
-      border: 2px solid white;
-      background-color: rgba(255, 255, 255, 0.5); /* 半透明に設定 */
-      width: 100%;
-      height: 100%;
-    }
-    #scanConfirmBtn {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 10px 20px;
-      font-size: 16px;
-      z-index: 10;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    #startScanBtn {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      padding: 20px 40px;
-      font-size: 24px;
-      z-index: 10;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-    }
+    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
+    video { width: 300px; border: 2px solid #333; }
+    button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
+    pre { background: #eee; padding: 10px; text-align: left; display: inline-block; }
   </style>
 </head>
 <body>
-  <video id="videoBackground" autoplay muted playsinline></video>
-
-  <div id="controls">
-    <button onclick="shuffleCube()">ミックス</button>
-    <button onclick="resetCube()">リセット</button>
-  </div>
-
-  <button id="startScanBtn" onclick="startScanning()">スキャン開始</button>
-  
-  <div id="scanGrid"></div>
-  <button id="scanConfirmBtn" onclick="scanGridColors()">スキャン決定</button>
+  <h1>ルービックキューブ面スキャナー</h1>
+  <video id="video" autoplay></video><br>
+  <button onclick="capture()">この面を読み取る</button>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <h3>読み取り結果</h3>
+  <pre id="output"></pre>
 
   <script>
-    const video = document.getElementById('videoBackground');
-    const scanGrid = document.getElementById('scanGrid');
-    const gridCells = [];
-    for (let i = 0; i < 9; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'gridCell';
-      scanGrid.appendChild(cell);
-      gridCells.push(cell);
-    }
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const output = document.getElementById('output');
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    // カメラ起動
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => alert("カメラにアクセスできません：" + err));
 
-    navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'environment'
-      }
-    })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        console.error('カメラの起動に失敗しました:', err);
-      });
+    function capture() {
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
 
-    function getAverageColor(x, y, size) {
-      x = Math.max(0, Math.floor(x));
-      y = Math.max(0, Math.floor(y));
-      size = Math.floor(size);
-      try {
-        const imageData = ctx.getImageData(x, y, size, size);
-        let r = 0, g = 0, b = 0;
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          r += data[i];
-          g += data[i + 1];
-          b += data[i + 2];
-        }
-        const pixelCount = data.length / 4;
-        return { r: r / pixelCount, g: g / pixelCount, b: b / pixelCount };
-      } catch (e) {
-        console.error('色の取得に失敗:', e);
-        return { r: 0, g: 0, b: 0 };
-      }
-    }
-
-    function mapToColor(r, g, b) {
-      const colors = [
-        { name: '白', rgb: [255, 255, 255], hex: '#ffffff' },
-        { name: '黄', rgb: [255, 255, 0], hex: '#ffff00' },
-        { name: '緑', rgb: [0, 255, 0], hex: '#00ff00' },
-        { name: '赤', rgb: [255, 0, 0], hex: '#ff0000' },
-        { name: '青', rgb: [0, 0, 255], hex: '#0000ff' },
-        { name: '橙', rgb: [255, 165, 0], hex: '#ffa500' }
-      ];
-      let minDist = Infinity, closest = colors[0];
-      for (const c of colors) {
-        const dist = Math.sqrt((r - c.rgb[0])**2 + (g - c.rgb[1])**2 + (b - c.rgb[2])**2);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = c;
-        }
-      }
-      return closest;
-    }
-
-    const scannedFaces = [];
-    const faceLabels = ['F', 'U', 'D', 'L', 'G', 'B'];
-    let currentFaceIndex = 0;
-
-    function scanGridColors() {
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(video, 0, 0, width, height);
-
-      const grid = scanGrid.getBoundingClientRect();
-      const scaleX = video.videoWidth / window.innerWidth;
-      const scaleY = video.videoHeight / window.innerHeight;
-
-      const cellWidth = grid.width / 3;
-      const cellHeight = grid.height / 3;
-
-      const faceData = [];
-      const samplingSize = 8; // ピクセル数を増やしてスキャンの精度を向上させる
-
+      const colors = [];
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
-          const x = (grid.left + col * cellWidth) * scaleX;
-          const y = (grid.top + row * cellHeight) * scaleY;
-          const { r, g, b } = getAverageColor(x, y, samplingSize);
-          const color = mapToColor(r, g, b);
-          faceData.push(color.name);
-          gridCells[row * 3 + col].style.backgroundColor = color.hex;  // スキャン中に即色を表示
+          const x = canvas.width * (0.35 + 0.1 * col);
+          const y = canvas.height * (0.35 + 0.1 * row);
+          const pixel = ctx.getImageData(x, y, 1, 1).data;
+          const label = classifyColor({ r: pixel[0], g: pixel[1], b: pixel[2] });
+          colors.push(label);
         }
       }
 
-      scannedFaces.push({ face: faceLabels[currentFaceIndex], data: faceData });
-      currentFaceIndex++;
-
-      if (currentFaceIndex >= faceLabels.length) {
-        console.log('すべての面のスキャンが完了しました:', scannedFaces);
-        // スキャン結果をルービックキューブに反映（例: ログ）
-        console.log('キューブに反映:', scannedFaces);
-      } 
+      output.textContent += `面: ${colors.join(' ')}\n`;
     }
 
-    function startScanning() {
-      document.getElementById('startScanBtn').style.display = 'none'; // スキャン開始ボタンを非表示に
-      setInterval(scanGridColors, 100); // 100msごとにスキャン実行
+    function classifyColor({ r, g, b }) {
+      if (r > 200 && g > 200 && b > 200) return 'W'; // 白
+      if (r > 180 && g < 80 && b < 80) return 'R';   // 赤
+      if (r < 80 && g > 180 && b < 80) return 'G';   // 緑
+      if (r < 80 && g < 80 && b > 180) return 'B';   // 青
+      if (r > 200 && g > 200 && b < 100) return 'Y'; // 黄
+      if (r > 200 && g > 130 && b < 80) return 'O';  // オレンジ
+      return '?'; // 判別不能
     }
-
-    function scanComplete() {
-      console.log("スキャンが完了しました！");
-      scanGrid.style.display = 'none'; // すべての面のスキャン後にグリッドを非表示に
-    }
-
-    // --- 3D Cube ---
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    const cubeGroup = new THREE.Group();
-    cubeGroup.visible = false;
-
-    const cubeSize = 0.95;
-    const offset = 1.05;
-    const cubes = [];
-
-    const colorsHex = [
-      0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xffa500
-    ];
-
-    function createCubie(x, y, z) {
-      const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-      const materials = colorsHex.map(color => new THREE.MeshBasicMaterial({ color }));
-      const mesh = new THREE.Mesh(geometry, materials);
-      mesh.position.set(x * offset, y * offset, z * offset);
-      cubeGroup.add(mesh);
-      cubes.push(mesh);
-    }
-
-    for (let x = -1; x <= 1; x++) {
-      for (let y = -1; y <= 1; y++) {
-        for (let z = -1; z <= 1; z++) {
-          createCubie(x, y, z);
-        }
-      }
-    }
-    scene.add(cubeGroup);
-    camera.position.z = 10;
-
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    function shuffleCube() {
-      cubeGroup.rotation.x = Math.random() * Math.PI * 2;
-      cubeGroup.rotation.y = Math.random() * Math.PI * 2;
-      cubeGroup.rotation.z = Math.random() * Math.PI * 2;
-    }
-
-    function resetCube() {
-      cubeGroup.rotation.set(0, 0, 0);
-    }
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
   </script>
 </body>
 </html>
