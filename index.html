@@ -241,10 +241,9 @@
       setTimeout(() => {
         const face = faceOrder[currentFace];
         const colors = captureCenterColor();
-        cubeColors[face] = colors;
+        cubeColors[face].push(colors);
         colors.forEach((color, index) => {
-          const rgb = `rgb(${color.r},${color.g},${color.b})`;
-          colorBoxes[index].style.backgroundColor = rgb;
+          colorBoxes[index].style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
         });
         currentFace++;
       }, 2000);
