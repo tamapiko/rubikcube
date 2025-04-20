@@ -70,6 +70,18 @@
       z-index: 5;
       background-color: transparent;
     }
+    #scanButton {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      font-size: 20px;
+      background-color: #008CBA;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -83,6 +95,7 @@
     <canvas id="canvas"></canvas>
     <div id="colorDisplay">中央の色: <span id="rgbText">---</span> <span id="detectedColor"></span></div>
   </div>
+  <button id="scanButton" style="display:none;" onclick="confirmScan()">スキャンを決定する</button>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
   <script>
@@ -153,6 +166,8 @@
     const ctx = canvas.getContext('2d');
     const rgbText = document.getElementById('rgbText');
     const colorBox = document.getElementById('detectedColor');
+    const colorOverlay = document.getElementById('colorOverlay');
+    const scanButton = document.getElementById('scanButton');
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
@@ -165,7 +180,25 @@
     const faceOrder = ['F', 'U', 'D', 'L', 'R', 'B'];
     let currentFace = 0;
     const cubeColors = {};
-    const colorBoxes = [];
+
+    function captureCenterColor() {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const centerColors = [];
+      const spacing = canvas.width / 6;
+      const startX = canvas.width / 2 - spacing;
+      const startY = canvas.height / 2 - spacing;
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          const x = startX + col * spacing;
+          const y = startY + row * spacing;
+          const imageData = ctx.getImageData(x, y, 1, 1).data;
+          centerColors.push({ r: imageData[0], g: imageData[1], b: imageData[2] });
+        }
+      }
+      return centerColors;
+    }
 
     function createOverlayGrid() {
       const size = 40;
@@ -188,28 +221,6 @@
       }
     }
 
-    function captureCenterColor() {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const centerColors = [];
-      const spacing = canvas.width / 6;
-      const startX = canvas.width / 2 - spacing;
-      const startY = canvas.height / 2 - spacing;
-
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          const x = startX + col * spacing;
-          const y = startY + row * spacing;
-          const imageData = ctx.getImageData(x, y, 1, 1).data;
-          centerColors.push({ r: imageData[0], g: imageData[1], b: imageData[2] });
-        }
-      }
-
-      return centerColors;
-    }
-
     function startScanning() {
       currentFace = 0;
       faceOrder.forEach(f => cubeColors[f] = []);
@@ -230,13 +241,14 @@
         rgbText.textContent = `R:${colors[4].r} G:${colors[4].g} B:${colors[4].b}`;
         const rgb = `rgb(${colors[4].r},${colors[4].g},${colors[4].b})`;
         colorBox.style.backgroundColor = rgb;
-        colorBoxes.forEach((box, i) => {
-          const c = colors[i];
-          box.style.backgroundColor = `rgb(${c.r},${c.g},${c.b})`;
-        });
         currentFace++;
         scanNextFace();
       }, 2000);
+    }
+
+    function confirmScan() {
+      alert("スキャンを確認しました。");
+      applyColorsToCube();
     }
 
     function applyColorsToCube() {
