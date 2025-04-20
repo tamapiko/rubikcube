@@ -201,7 +201,7 @@
           const { r, g, b } = getAverageColor(x, y, samplingSize);
           const color = mapToColor(r, g, b);
           faceData.push(color.name);
-          gridCells[row * 3 + col].style.backgroundColor = color.hex;
+          gridCells[row * 3 + col].style.backgroundColor = color.hex;  // スキャン中に即色を表示
         }
       }
 
@@ -221,6 +221,7 @@
     function startScanning() {
       document.getElementById('startScanBtn').style.display = 'none'; // スキャン開始ボタンを非表示に
       scanGrid.style.display = 'grid'; // スキャン用グリッドを表示
+      setInterval(scanGridColors, 100); // 100msごとにスキャン実行
     }
 
     // --- 3D Cube ---
