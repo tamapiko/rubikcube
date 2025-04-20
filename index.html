@@ -11,42 +11,6 @@
       overflow: hidden;
       font-family: sans-serif;
     }
-    canvas {
-      display: block;
-    }
-    #controls {
-      position: absolute;
-      top: 10%;
-      left: 10%;
-      z-index: 10;
-      display: flex;
-      flex-direction: row; /* 横並びに設定 */
-      gap: 1vw; /* ボタン間のスペース */
-    }
-    #controls button {
-      padding: 2vh 4vw;
-      font-size: 3vh;
-      border-radius: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      background-color: rgba(0, 140, 255, 0.8);
-      color: white;
-      border: none;
-      max-width: 100%;
-    }
-    #scanButton {
-      position: absolute;
-      bottom: 5%;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 4vh 8vw;
-      font-size: 4vh;
-      background-color: #008CBA;
-      color: white;
-      border-radius: 8px;
-      cursor: pointer;
-      display: none;
-    }
     #videoBackground {
       position: fixed;
       top: 0;
@@ -56,19 +20,151 @@
       object-fit: cover;
       z-index: -1;
     }
+    canvas {
+      display: block;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #controls button {
+      padding: 10px 16px;
+      font-size: 16px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #scanGrid {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(100vmin - 100px);
+      height: calc(100vmin - 100px);
+      transform: translate(-50%, -50%);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 4px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .gridCell {
+      border: 2px solid white;
+      background-color: rgba(255, 255, 255, 0.1);
+      width: 100%;
+      height: 100%;
+    }
+    #scanConfirmBtn {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      font-size: 18px;
+      z-index: 10;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <video id="videoBackground" autoplay muted playsinline></video>
+
   <div id="controls">
     <button onclick="shuffleCube()">ミックス</button>
     <button onclick="resetCube()">リセット</button>
     <button onclick="startScanning()">色を読み取る</button>
   </div>
-  <button id="scanButton" onclick="confirmScan()">スキャンを決定する</button>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+  <div id="scanGrid"></div>
+  <button id="scanConfirmBtn" onclick="scanGridColors()">スキャン決定</button>
+
   <script>
+    const video = document.getElementById('videoBackground');
+    const scanGrid = document.getElementById('scanGrid');
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'gridCell';
+      scanGrid.appendChild(cell);
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error('カメラの起動に失敗しました:', err);
+      });
+
+    function getAverageColor(x, y, size) {
+      const imageData = ctx.getImageData(x, y, size, size);
+      let r = 0, g = 0, b = 0;
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i];
+        g += data[i + 1];
+        b += data[i + 2];
+      }
+      const pixelCount = data.length / 4;
+      return { r: r / pixelCount, g: g / pixelCount, b: b / pixelCount };
+    }
+
+    function mapToColor(r, g, b) {
+      const colors = [
+        { name: '白', rgb: [255, 255, 255] },
+        { name: '黄', rgb: [255, 255, 0] },
+        { name: '緑', rgb: [0, 255, 0] },
+        { name: '赤', rgb: [255, 0, 0] },
+        { name: '青', rgb: [0, 0, 255] },
+        { name: '橙', rgb: [255, 165, 0] }
+      ];
+      let minDist = Infinity, closest = '';
+      for (const c of colors) {
+        const dist = Math.sqrt((r - c.rgb[0])**2 + (g - c.rgb[1])**2 + (b - c.rgb[2])**2);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = c.name;
+        }
+      }
+      return closest;
+    }
+
+    function scanGridColors() {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(video, 0, 0, width, height);
+
+      const cellSize = width * 0.2 / 3; // 約20%中央部
+      const offsetX = (width - cellSize * 3) / 2;
+      const offsetY = (height - cellSize * 3) / 2;
+
+      const results = [];
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          const x = offsetX + col * cellSize;
+          const y = offsetY + row * cellSize;
+          const { r, g, b } = getAverageColor(x, y, cellSize / 2);
+          const colorName = mapToColor(r, g, b);
+          results.push(colorName);
+        }
+      }
+
+      console.log("スキャン結果:", results);
+    }
+
+    // --- 3D Cube（非表示中） ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -80,18 +176,13 @@
     const offset = 1.05;
     const cubes = [];
 
-    const colors = [
-      0xffffff, // white
-      0xff0000, // red
-      0x00ff00, // green
-      0x0000ff, // blue
-      0xffff00, // yellow
-      0xffa500  // orange
+    const colorsHex = [
+      0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xffa500
     ];
 
     function createCubie(x, y, z) {
       const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-      const materials = colors.map(color => new THREE.MeshBasicMaterial({ color }));
+      const materials = colorsHex.map(color => new THREE.MeshBasicMaterial({ color }));
       const mesh = new THREE.Mesh(geometry, materials);
       mesh.position.set(x * offset, y * offset, z * offset);
       cubeGroup.add(mesh);
@@ -105,7 +196,6 @@
         }
       }
     }
-
     scene.add(cubeGroup);
     camera.position.z = 10;
 
@@ -130,63 +220,6 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
-
-    const video = document.getElementById('videoBackground');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        console.error('カメラの起動に失敗しました:', err);
-      });
-
-    const colorPalette = {
-      white: { r: 255, g: 255, b: 255 },
-      yellow: { r: 255, g: 255, b: 0 },
-      green: { r: 0, g: 255, b: 0 },
-      red: { r: 255, g: 0, b: 0 },
-      blue: { r: 0, g: 0, b: 255 },
-      orange: { r: 255, g: 165, b: 0 }
-    };
-
-    function captureCenterColor() {
-      return ['white', 'yellow', 'green', 'red', 'blue', 'orange']; // 仮の色データ
-    }
-
-    function startScanning() {
-      let currentFace = 0;
-      const faceOrder = ['F', 'U', 'D', 'L', 'R', 'B'];
-      const cubeColors = {};
-
-      cubeGroup.visible = false;
-      scanButton.style.display = 'block';
-
-      function scanNextFace() {
-        if (currentFace >= faceOrder.length) {
-          applyColorsToCube();
-          return;
-        }
-        const face = faceOrder[currentFace];
-        setTimeout(() => {
-          const colors = captureCenterColor(); // 仮にすべての面を色データとして返す
-          cubeColors[face] = colors;
-          currentFace++;
-          scanNextFace();
-        }, 2000);
-      }
-
-      scanNextFace();
-    }
-
-    function confirmScan() {
-      applyColorsToCube();
-    }
-
-    function applyColorsToCube() {
-      console.log("スキャン完了:", cubeColors);
-      cubeGroup.visible = true;
-      scanButton.style.display = 'none';
-    }
   </script>
 </body>
 </html>
