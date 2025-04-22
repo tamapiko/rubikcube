@@ -1,173 +1,70 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ルービックキューブスキャナー</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ルービックキューブスキャン</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background-color: #000;
-    }
-    #videoElement, #canvasOutput {
+    body { margin: 0; background: #fdfeff; display: flex; flex-direction: column; align-items: center; }
+    video, canvas { border: 1px solid #ccc; margin-top: 20px; }
+    .grid-overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
+      width: 300px;
+      height: 300px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      pointer-events: none;
     }
-    #status, #guide {
-      position: absolute;
-      left: 10px;
-      color: #fff;
-      background: rgba(0,0,0,0.5);
-      padding: 5px 10px;
-      border-radius: 5px;
-      font-size: 18px;
+    .grid-overlay div {
+      border: 1px solid rgba(0,0,0,0.2);
     }
-    #status { top: 10px; }
-    #guide { top: 50px; }
-    #scanButton {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      padding: 12px 20px;
-      font-size: 18px;
-      background-color: #2196f3;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
+    #camera-container {
+      position: relative;
+      width: 300px;
+      height: 300px;
     }
   </style>
 </head>
 <body>
-  <video id="videoElement" autoplay playsinline></video>
-  <canvas id="canvasOutput"></canvas>
-  <div id="status">読み込み中...</div>
-  <div id="guide">U面をスキャンしてください。</div>
-  <button id="scanButton">スキャン</button>
-
-  <!-- OpenCV.js -->
-  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
+  <h1>ルービックキューブスキャン</h1>
+  <div id="camera-container">
+    <video id="video" width="300" height="300" autoplay></video>
+    <div class="grid-overlay">
+      <div></div><div></div><div></div>
+      <div></div><div></div><div></div>
+      <div></div><div></div><div></div>
+    </div>
+  </div>
+  <button id="capture">色を読み取る</button>
+  <canvas id="canvas" width="300" height="300" style="display:none;"></canvas>
 
   <script>
-    let video = document.getElementById('videoElement');
-    let canvas = document.getElementById('canvasOutput');
-    let ctx = canvas.getContext('2d');
-    let statusText = document.getElementById('status');
-    let guideText = document.getElementById('guide');
-    let scanButton = document.getElementById('scanButton');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const captureBtn = document.getElementById('capture');
 
-    let currentScanFace = 'U';
-    let scannedColors = { U: [], F: [], R: [], B: [], L: [], D: [] };
+    navigator.mediaDevices.getUserMedia({ video: { width: 300, height: 300 } })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => console.error('カメラの取得に失敗しました:', err));
 
-    function onOpenCvReady() {
-      statusText.innerText = 'カメラを起動しています...';
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-        .then(stream => {
-          video.srcObject = stream;
-          video.play();
-          video.onloadedmetadata = () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            requestAnimationFrame(drawVideo);
-          };
-        })
-        .catch(err => {
-          statusText.innerText = 'カメラの起動に失敗しました: ' + err;
-        });
-    }
-
-    function drawVideo() {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      drawScanGrid();
-      requestAnimationFrame(drawVideo);
-    }
-
-    function drawScanGrid() {
-      const gridSize = Math.min(canvas.width, canvas.height) * 0.4;
-      const startX = (canvas.width - gridSize) / 2;
-      const startY = (canvas.height - gridSize) / 2;
-      const cellSize = gridSize / 3;
-
-      // 描画（線）
-      ctx.strokeStyle = 'lime';
-      ctx.lineWidth = 2;
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          const x = startX + col * cellSize;
-          const y = startY + row * cellSize;
-          ctx.strokeRect(x, y, cellSize, cellSize);
-
-          // 色が記録されていれば表示
-          const colorList = scannedColors[currentScanFace];
-          const index = row * 3 + col;
-          if (colorList[index]) {
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(x, y, cellSize, cellSize);
-            ctx.fillStyle = 'white';
-            ctx.font = `${cellSize / 3}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(colorList[index], x + cellSize / 2, y + cellSize / 2);
-          }
+    captureBtn.addEventListener('click', () => {
+      ctx.drawImage(video, 0, 0, 300, 300);
+      const colors = [];
+      for (let y = 0; y < 3; y++) {
+        for (let x = 0; x < 3; x++) {
+          const px = x * 100 + 50;
+          const py = y * 100 + 50;
+          const data = ctx.getImageData(px, py, 1, 1).data;
+          colors.push({ r: data[0], g: data[1], b: data[2] });
         }
       }
-    }
-
-    scanButton.addEventListener('click', () => {
-      identifyColors();
+      console.log('読み取った色:', colors);
+      alert('色をコンソールに表示しました');
     });
-
-    function identifyColors() {
-      const colors = ['白', '黄', '赤', 'オレンジ', '青', '緑'];
-      const detectedColors = Array.from({ length: 9 }, () => colors[Math.floor(Math.random() * colors.length)]);
-      
-      scannedColors[currentScanFace] = detectedColors;
-      guideText.innerText = `${currentScanFace}面の色を記録しました。`;
-
-      switch (currentScanFace) {
-        case 'U': currentScanFace = 'F'; break;
-        case 'F': currentScanFace = 'R'; break;
-        case 'R': currentScanFace = 'B'; break;
-        case 'B': currentScanFace = 'L'; break;
-        case 'L': currentScanFace = 'D'; break;
-        case 'D':
-          guideText.innerText = 'すべての面をスキャンしました！';
-          scanButton.disabled = true;
-          showAllScannedColors();
-          return;
-      }
-
-      setTimeout(() => {
-        guideText.innerText = `${currentScanFace}面をスキャンしてください。`;
-      }, 1000);
-    }
-
-    function showAllScannedColors() {
-      console.log("スキャン結果：", scannedColors);
-      let resultText = "スキャン結果：\n";
-      for (let face of ['U', 'F', 'R', 'B', 'L', 'D']) {
-        resultText += `${face}: ${scannedColors[face].join(', ')}\n`;
-      }
-
-      let resultDiv = document.createElement('div');
-      resultDiv.style.position = 'absolute';
-      resultDiv.style.bottom = '10px';
-      resultDiv.style.left = '10px';
-      resultDiv.style.background = 'rgba(0,0,0,0.7)';
-      resultDiv.style.color = 'white';
-      resultDiv.style.padding = '10px';
-      resultDiv.style.fontSize = '16px';
-      resultDiv.style.maxWidth = '90vw';
-      resultDiv.style.whiteSpace = 'pre-wrap';
-      resultDiv.innerText = resultText;
-
-      document.body.appendChild(resultDiv);
-    }
   </script>
 </body>
 </html>
